@@ -1,86 +1,118 @@
 // Basic motion detector and servo sketch with two LED's
-// dnefordberriman@gmail.com
+// denfordberriman@gmail.com
 // https://github.com/dibs/PartyPopperSentry
 // MIT license
 
+// LIBRARIES
+#include <Servo.h>
 
-/////////////////////////////
+// VARS
 
-//VARS
-//the time we give the sensor to calibrate (10-60 secs according to the datasheet)
-int calibrationTime = 30;        
+// the time we give the sensor to calibrate (10-60 secs according to the datasheet)
+int calibrationTime = 30; //20
 
-//the time when the sensor outputs a low impulse
-long unsigned int lowIn;         
+// create servo object to control a servo
+Servo myservo;
 
-//the amount of milliseconds the sensor has to be low 
-//before we assume all motion has stopped
-long unsigned int pause = 5000;  
-
-//boolean lockLow = true;
-boolean takeLowTime;  
-
-int pirPin = 3;    //the digital pin connected to the PIR sensor's output
-int ledPin = 13;
-int swordPin = 7;
-
-
-/////////////////////////////
-//SETUP
-void setup(){
-  Serial.begin(9600);
+// initialise servo position var
+int pos0 = 10;
+int pos1 = 180;
+int pirPin    = 3;        // PIR pin
+int servoPin  = 9;        // Servo pin
+int led1Pin    = 13;      // LED pin
+int led2Pin    = 12;      // LED pin
+int val = 0;              // variable for reading the pin status
+boolean led1On = false;   // use for traking LED
+boolean led2On = false;   // use for traking LED
+boolean movement = false; // have we detected motion
+boolean fired = false;    // has it fired yet?
+// PREPARE
+void setup() 
+{
+  Serial.begin(9600); // Enable serial comms
+  
   pinMode(pirPin, INPUT);
-  pinMode(ledPin, OUTPUT);
-  pinMode(swordPin, OUTPUT);
-  digitalWrite(pirPin, LOW);
-
+  pinMode(led1Pin, OUTPUT);
+  pinMode(led2Pin, OUTPUT);
+  digitalWrite(pirPin, LOW); // needed?
+  
+  myservo.attach(servoPin);  // attaches the servo on pin 9 to the servo object 
+  //set servo to 10, 0 seems a bit out or reach
+  myservo.write(pos0);
+  
   //give the sensor some time to calibrate
-  Serial.print("calibrating sensor ");
-    for(int i = 0; i < calibrationTime; i++){
-      Serial.print(".");
-      delay(1000);
+  Serial.print("calibrating sensor");
+  for(int i = 0; i < calibrationTime; i++){
+    Serial.print(".");
+    for (int j = 0; j < 10; j++) {
+      if (led1On) {
+        digitalWrite(led1Pin, LOW);
+        digitalWrite(led2Pin, HIGH);
+        led1On = false;
+      } else {
+        digitalWrite(led1Pin, HIGH);
+        digitalWrite(led2Pin, LOW);
+        led1On = true;
       }
-    Serial.println(" done");
-    Serial.println("SENSOR ACTIVE");
-    delay(50);
+      delay(100);
+    }
   }
+  digitalWrite(led1Pin, LOW);
+  digitalWrite(led2Pin, LOW);
+  led1On = false;
+  led2On = false;
+}
 
-////////////////////////////
-//LOOP
-void loop(){
-     Serial.println("Current output = " + digitalRead(pirPin));
-     if(digitalRead(pirPin) == HIGH){
-       digitalWrite(ledPin, HIGH);   //the led visualizes the sensors output pin state
-       digitalWrite(swordPin, HIGH); //unsheath the sword
-       //if(lockLow){  
-         //makes sure we wait for a transition to LOW before any further output is made:
-         //lockLow = false;            
-         Serial.println("---");
-         Serial.print("motion detected at ");
-         Serial.print(millis()/1000);
-         Serial.println(" sec"); 
-         delay(50);
-         //}         
-         takeLowTime = true;
-       }
 
-     if(digitalRead(pirPin) == LOW){       
-       digitalWrite(ledPin, LOW);  //the led visualizes the sensors output pin state
-       digitalWrite(swordPin, LOW); //sheath the sword
-       if(takeLowTime){
-        lowIn = millis();          //save the time of the transition from high to LOW
-        takeLowTime = false;       //make sure this is only done at the start of a LOW phase
-        }
-       //if the sensor is low for more than the given pause, 
-       //we assume that no more motion is going to happen
-       //if(!lockLow && millis() - lowIn > pause){  
-           //makes sure this block of code is only executed again after 
-           //a new motion sequence has been detected
-           //lockLow = true;                        
-           Serial.print("motion ended at ");      //output
-           Serial.print((millis() - pause)/1000);
-           Serial.println(" sec");
-           delay(50);
-          // }
-       }
+void loop() 
+{
+  if (!fired) {
+    //motion detector mode
+    if(digitalRead(pirPin) == HIGH){
+      if (movement == false) {
+        digitalWrite(led2Pin, HIGH);   //the led visualizes the sensors output pin state
+        //digitalWrite(swordPin, HIGH);  //unsheath the sword
+        Serial.println("---");
+        Serial.println("motion detected");
+        
+        myservo.write(pos1);
+        delay(500);
+        myservo.write(pos0);
+        delay(300);
+  //      myservo.write(pos1);
+  //      delay(300);
+  //      myservo.write(pos0);
+  //      delay(300);
+  //      myservo.write(pos1);
+  //      delay(300);
+  //      myservo.write(pos0);
+  //      delay(300);
+  //      myservo.write(pos1);
+  //      delay(300);
+  //      myservo.write(pos0);
+  //      delay(300);
+        movement = true;
+        fired = true;
+      }
+    }
+    if(digitalRead(pirPin) == LOW && movement == true){
+      digitalWrite(led2Pin, LOW);  //the led visualizes the sensors output pin state
+      // digitalWrite(swordPin, LOW); //sheath the sword
+      Serial.println("clear");
+      myservo.write(pos0);
+      movement = false;
+    }
+  } else {
+    // Idle when done firing, led's let you know it's done.
+    if (led1On) {
+      digitalWrite(led1Pin, LOW);
+      digitalWrite(led2Pin, HIGH);
+      led1On = false;
+    } else {
+      digitalWrite(led1Pin, HIGH);
+      digitalWrite(led2Pin, LOW);
+      led1On = true;
+    }
+    delay(1000);
   }
+}
